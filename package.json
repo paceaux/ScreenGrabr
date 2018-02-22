@@ -1,0 +1,23 @@
+{
+  "dependencies": {
+    "chrome-remote-interface": "^0.25.5",
+    "lighthouse": "^2.9.1"
+  },
+  "name": "screengrabr",
+  "version": "0.0.1",
+  "description": "A command line util for grabbing screens",
+  "main": "index.js",
+  "devDependencies": {},
+  "scripts": {
+    "start": "node index.js",
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "rollup -c"
+  },
+  "keywords": [
+    "Headless",
+    "Chrome",
+    "screenshots"
+  ],
+  "author": "Frank M. Taylor",
+  "license": "MIT"
+}

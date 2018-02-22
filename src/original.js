@@ -1,0 +1,167 @@
+/** Pre requisites 
+ * MAC ONLY FOR RIGHT NOW! Not my fault. We have to wait for Headless Chrome to hit Windows users
+1) Make an Alias to Chrome
+  alias chrome="/Applications/Google\ Chrome.app/Contents/MacOS/Google\ Chrome"
+  alias chrome-canary="/Applications/Google\ Chrome\ Canary.app/Contents/MacOS/Google\ Chrome\ Canary"
+  
+2) Make Sure yarn is installed (it caches packages so you don't have to download them again)
+    `npm i yarn`
+
+3) Use yarn to install dependencies:
+  `yarn add lighthouse`
+  `yarn add chrome-remote-interface`
+
+ * USAGE:
+ * `node headless-screenshot.js -w 1024 -h 768 --url=http://google.com`
+ * `node headless-screenshot.js --widths=1024,768 -h 768 --url=http://google.com`
+ * `node headless-screenshot.js --widths=1024,768 --heights=1024,768 --url=http://google.com`
+ * `node headless-screenshot.js --widths=1024,768 --heights=1024,768 --urls=http://google.com, http://amazon.com`
+ * `node headless-screenshot.js --widths=1024,768 --urlFile=myurls.json
+ *  myurls.json should be an array of urls
+ */
+
+/* Dependencies */
+const settings = require('./defaults.config.js');
+const chromeLauncher = require('lighthouse/chrome-launcher/chrome-launcher');
+const CDP = require('chrome-remote-interface');
+const fs = require('fs');
+
+/** ARGUMENTS AND CONFIGUIRATION
+ * expects arguments to be
+ * -w int (width)
+ * -h int (height)
+ * -p int (port)
+ * --url string (url)
+ * --widths
+ */
+
+const argv = require('minimist')(process.argv.slice(2));
+let grabConfig;
+
+if (argv.grabConfig && argv.grabConfig.indexOf('.js') != -1) {
+  grabConfig = require(`./${argv.grabConfig}`);
+  Object.assign(settings,grabConfig);
+}
+
+const windowWidth = argv.w ? [argv.w] : settings.dimensions.width;
+const windowHeight = argv.h ? [argv.h] : settings.dimensions.height;
+let windowWidths = argv.widths ? argv.widths.split(',') : windowWidth;
+let windowHeights = argv.heights ? argv.heights.split(',') : windowHeight;
+
+if (settings.dimensions) {
+  if (settings.dimensions.width) {
+    windowWidths = settings.dimensions.width
+  }
+
+  if (settings.dimensions.height) {
+    windowHeights = settings.dimensions.height
+  }
+
+}
+
+
+let urls = argv.urls ? argv.urls.split(',') : [argv.url];
+if (!argv.url && settings.urls) {
+  urls = settings.urls;
+}
+
+if (argv.urlFile && argv.urlFile.indexOf('.json') != -1) {
+    urls = require(`./${argv.urlFile}`);
+}
+
+
+function createOutputDirectory(directory) {
+  if (!fs.existsSync(`./${directory}`)) {
+    fs.mkdirSync(directory);
+  }
+}
+
+/**
+ *  Saves a screenshot to the file system, in the folder where this file is being run
+ * @param {String} imageData base64 string of image data
+ * @param {String} pageURL url of the page (used for generating file name)
+ * @param {String} windowWidth width of page (used in filename)
+ * @param {String} windowHeight height of page (used in filename)
+ */
+function saveScreenshot(imageData, pageURL, windowWidth, windowHeight) {
+    const filename = `${pageURL.replace('http://','').replace(/\//g,'_')}.${windowWidth}x${windowHeight}.${settings.fileExt}`;
+
+    createOutputDirectory(settings.outputDirectory);
+
+    fs.writeFile(
+        `${settings.outputDirectory}/${filename}`,
+        imageData.data, {encoding:'base64'},
+        (err)=>{
+            console.warn('error', err);
+        }
+    );
+}
+
+/**
+ * Launches a debugging instance of Chrome.
+ *     False launches a full version of Chrome.
+ * @return {Promise<ChromeLauncher>}
+ */
+async function launchChrome(launchConfig) {
+  return await chromeLauncher.launch(launchConfig);
+}
+
+/** 
+ * Generates instance of chrome, based on dimensions, saves a screenshot of it
+ * @param {string} pageURL : url of page
+ * @param {string} windowWidth: width of window as an int
+ * @param {string} windowHeight: height of window as an int
+*/
+ async function saveScreenShotFromURL(pageURL, windowWidth, windowHeight) {
+    const launchConfig = {
+        chromeFlags: [
+            `--window-size=${windowWidth},${windowHeight}`,
+            '--disable-gpu',
+            '--headless'
+        ]
+    };
+     const chrome = await chromeLauncher.launch(launchConfig);;
+     const protocol = await CDP({port: chrome.port});
+     const {Page, Runtime} = protocol;
+
+     await Promise.all([Page.enable(), Runtime.enable()]);
+
+     Page.navigate({url: pageURL});
+
+     Page.loadEventFired(async () => {
+        const titleJS = "document.querySelector('title').textContent";
+        const pageTitle = await Runtime.evaluate({expression: titleJS});
+        const screenshot = await Page.captureScreenshot();
+
+        console.log(`title of page: ${pageTitle.result.value}`);
+
+        await saveScreenshot(screenshot,pageURL, windowWidth, windowHeight);
+        
+
+        protocol.close();
+        chrome.kill();
+     });
+ }
+
+/**
+ * 
+ * @param {Array} urls 
+ * @param {Array} widths 
+ * @param {Array} heights 
+ */
+async function loopOverParameters(urls, widths, heights) {
+    const screenshots = [];
+
+    urls.forEach((url) => {
+        widths.forEach((width) => {
+            heights.forEach((height) => {
+                screenshots.push( saveScreenShotFromURL(url, width,height));
+            });
+        });
+    });
+    await Promise.all(screenshots);
+ }
+
+ loopOverParameters(urls, windowWidths, windowHeights);
+
+ 
