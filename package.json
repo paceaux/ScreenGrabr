@@ -5,13 +5,18 @@
   },
   "name": "screengrabr",
   "version": "0.0.1",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/paceaux/ScreenGrabr.git"
+  },
   "description": "A command line util for grabbing screens",
   "main": "index.js",
   "devDependencies": {},
   "scripts": {
     "start": "node index.js",
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "rollup -c"
+    "build": "rollup -c",
+    "grab" : "node index.js -- --grabConfig="
   },
   "keywords": [
     "Headless",
@@ -19,5 +24,9 @@
     "screenshots"
   ],
   "author": "Frank M. Taylor",
-  "license": "MIT"
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/paceaux/ScreenGrabr/issues"
+  },
+  "homepage": "https://github.com/paceaux/ScreenGrabr#readme"
 }
